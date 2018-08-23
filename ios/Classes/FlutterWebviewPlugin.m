@@ -3,9 +3,12 @@
 static NSString *const CHANNEL_NAME = @"flutter_webview_plugin";
 
 // UIWebViewDelegate
-@interface FlutterWebviewPlugin() <WKNavigationDelegate, UIScrollViewDelegate> {
+@interface FlutterWebviewPlugin() <WKNavigationDelegate, UIScrollViewDelegate, WKScriptMessageHandler> {
     BOOL _enableAppScheme;
     BOOL _enableZoom;
+    NSString* _stopUrlRegex;
+    NSString* _injectJSToStopUrl;
+    id _webViewCallback;
 }
 @end
 
@@ -72,7 +75,9 @@ static NSString *const CHANNEL_NAME = @"flutter_webview_plugin";
     NSString *userAgent = call.arguments[@"userAgent"];
     NSNumber *withZoom = call.arguments[@"withZoom"];
     NSNumber *scrollBar = call.arguments[@"scrollBar"];
-    
+    _stopUrlRegex = call.arguments[@"stopUrlRegex"];
+    _injectJSToStopUrl = call.arguments[@"injectJSToStopUrl"];
+
     if (clearCache != (id)[NSNull null] && [clearCache boolValue]) {
         [[NSURLCache sharedURLCache] removeAllCachedResponses];
     }
@@ -93,7 +98,12 @@ static NSString *const CHANNEL_NAME = @"flutter_webview_plugin";
         rc = self.viewController.view.bounds;
     }
     
-    self.webview = [[WKWebView alloc] initWithFrame:rc];
+    WKWebViewConfiguration *theConfiguration = [[WKWebViewConfiguration alloc] init];
+    WKUserContentController *controller = [[WKUserContentController alloc] init];
+    [controller addScriptMessageHandler:self name:@"apptivateApp"];
+    theConfiguration.userContentController = controller;
+    
+    self.webview = [[WKWebView alloc] initWithFrame:rc configuration:theConfiguration];
     self.webview.navigationDelegate = self;
     self.webview.scrollView.delegate = self;
     self.webview.hidden = [hidden boolValue];
@@ -219,6 +229,32 @@ static NSString *const CHANNEL_NAME = @"flutter_webview_plugin";
     } else {
         id data = @{@"url": navigationAction.request.URL.absoluteString};
         [channel invokeMethod:@"onUrlChanged" arguments:data];
+        
+        if ( (_stopUrlRegex != nil) && (_injectJSToStopUrl != nil) ) {
+            NSError* error;
+            NSRegularExpression* regex = [NSRegularExpression regularExpressionWithPattern: _stopUrlRegex options:0 error:&error];
+            NSRange   searchedRange = NSMakeRange(0, [navigationAction.request.URL.absoluteString length]);
+            NSString* u = navigationAction.request.URL.absoluteString;
+            NSArray* matches = [regex matchesInString:navigationAction.request.URL.absoluteString options:0 range: searchedRange];
+            
+            //if([matches count] > 0) {
+            if([u rangeOfString:@"us-east-1.quicksight.aws.amazon.com"].location != NSNotFound) {
+                // inject js
+                WKWebViewConfiguration* configuration = self.webview.configuration;
+                NSString* useJS = @"onload = function() {";
+                useJS = [useJS stringByAppendingString:_injectJSToStopUrl];
+                useJS = [useJS stringByAppendingString: @"}"];
+               /* _injectJSToStopUrl = @"onload = function() {window.webkit.messageHandlers.apptivateApp.postMessage('{\
+                    \"app\" : \"apptivate\",\
+                    \"messageType\": \"message\",\
+                    \"value\": \"prop\"\
+                }')}";*/
+                WKUserScript *s = [[WKUserScript alloc] initWithSource:useJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES];
+                WKUserContentController *c = configuration.userContentController;
+                
+                [c addUserScript:s];
+            }
+        }
     }
 
     if (_enableAppScheme ||
@@ -261,6 +297,15 @@ static NSString *const CHANNEL_NAME = @"flutter_webview_plugin";
     if (scrollView.pinchGestureRecognizer.isEnabled != _enableZoom) {
         scrollView.pinchGestureRecognizer.enabled = _enableZoom;
     }
+}
+
+- (void)userContentController:(nonnull WKUserContentController *)userContentController didReceiveScriptMessage:(nonnull WKScriptMessage *)message {
+    NSDictionary *sentData = (NSDictionary *)message.body;
+    
+    
+    [channel invokeMethod:@"onApptivateDataMessage" arguments:sentData];
+    
+    
 }
 
 @end

@@ -19,6 +19,7 @@ class FlutterWebviewPlugin {
   final _onDestroy = new StreamController<Null>.broadcast();
   final _onUrlChanged = new StreamController<String>.broadcast();
   final _onStateChanged = new StreamController<WebViewStateChanged>.broadcast();
+  final _onApptivateDataMessage = new StreamController<dynamic>.broadcast();
   final _onScrollXChanged = new StreamController<double>.broadcast();
   final _onScrollYChanged = new StreamController<double>.broadcast();
   final _onHttpError = new StreamController<WebViewHttpError>.broadcast();
@@ -38,6 +39,9 @@ class FlutterWebviewPlugin {
         break;
       case 'onUrlChanged':
         _onUrlChanged.add(call.arguments['url']);
+        break;
+      case "onApptivateDataMessage":
+        _onApptivateDataMessage.add(call.arguments);
         break;
       case "onScrollXChanged":
         _onScrollXChanged.add(call.arguments["xDirection"]);
@@ -68,6 +72,9 @@ class FlutterWebviewPlugin {
   /// content is Map for type: {shouldStart(iOS)|startLoad|finishLoad}
   /// more detail than other events
   Stream<WebViewStateChanged> get onStateChanged => _onStateChanged.stream;
+
+  Stream<dynamic> get onApptivateDataMessage => _onApptivateDataMessage.stream;
+
 
   /// Listening web view y position scroll change
   Stream<double> get onScrollYChanged => _onScrollYChanged.stream;
@@ -107,7 +114,13 @@ class FlutterWebviewPlugin {
       bool withZoom,
       bool withLocalStorage,
       bool withLocalUrl,
-      bool scrollBar}) async {
+      bool scrollBar,
+      String stopUrlRegex,
+      dynamic webViewCallback}) async {
+    var injectJSToStopUrl;
+    if ((webViewCallback != null) && (webViewCallback["jsToInject"] != null) ){
+        injectJSToStopUrl = webViewCallback["jsToInject"];
+    }
     final args = <String, dynamic>{
       'url': url,
       'withJavascript': withJavascript ?? true,
@@ -119,7 +132,9 @@ class FlutterWebviewPlugin {
       'withZoom': withZoom ?? false,
       'withLocalStorage': withLocalStorage ?? true,
       'withLocalUrl': withLocalUrl ?? false,
-      'scrollBar': scrollBar ?? true
+      'scrollBar': scrollBar ?? true,
+      'stopUrlRegex': stopUrlRegex ?? null,
+      'injectJSToStopUrl': injectJSToStopUrl ?? null 
     };
 
     if (headers != null) {
@@ -191,6 +206,7 @@ class FlutterWebviewPlugin {
     _onStateChanged.close();
     _onScrollXChanged.close();
     _onScrollYChanged.close();
+    _onApptivateDataMessage.close();
     _onHttpError.close();
     _instance = null;
   }
