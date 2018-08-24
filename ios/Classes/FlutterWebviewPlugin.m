@@ -300,11 +300,19 @@ static NSString *const CHANNEL_NAME = @"flutter_webview_plugin";
 }
 
 - (void)userContentController:(nonnull WKUserContentController *)userContentController didReceiveScriptMessage:(nonnull WKScriptMessage *)message {
-    NSDictionary *sentData = (NSDictionary *)message.body;
+    NSMutableDictionary *sentData = [(NSDictionary *)message.body mutableCopy];
     
+    NSMutableDictionary *cookieDict = [[NSMutableDictionary alloc] init];
+    for (NSHTTPCookie *cookie in [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookies]) {
+        NSMutableDictionary *cookieProperties = [NSMutableDictionary dictionary];
+        [cookieProperties setObject:cookie.value forKey:NSHTTPCookieValue];
+        [cookieProperties setObject:cookie.domain forKey:NSHTTPCookieDomain];
+        [cookieProperties setObject:cookie.path forKey:NSHTTPCookiePath];
+        [cookieDict setObject:cookieProperties forKey:cookie.name];
+    }
     
+    [sentData setObject:cookieDict forKey:@"siteCookies"];
     [channel invokeMethod:@"onApptivateDataMessage" arguments:sentData];
-    
     
 }
 
