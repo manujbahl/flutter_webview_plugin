@@ -14,6 +14,8 @@ import java.util.Map;
  */
 
 public class BrowserClient extends WebViewClient {
+    private OnPageFinishedCallback mOnPageFinishedCallback;
+
     public BrowserClient() {
         super();
     }
@@ -37,7 +39,9 @@ public class BrowserClient extends WebViewClient {
 
         data.put("type", "finishLoad");
         FlutterWebviewPlugin.channel.invokeMethod("onState", data);
-
+        if(mOnPageFinishedCallback != null) {
+            mOnPageFinishedCallback.onPageFinished(url);
+        }
     }
 
     @Override
@@ -47,5 +51,17 @@ public class BrowserClient extends WebViewClient {
         data.put("url", request.getUrl().toString());
         data.put("code", Integer.toString(errorResponse.getStatusCode()));
         FlutterWebviewPlugin.channel.invokeMethod("onHttpError", data);
+    }
+
+
+    public void setOnPageFinishedCallback(final OnPageFinishedCallback onPageFinishedCallback)
+    {
+        mOnPageFinishedCallback = onPageFinishedCallback;
+    }
+
+
+    public static interface OnPageFinishedCallback
+    {
+        public void onPageFinished(String url);
     }
 }

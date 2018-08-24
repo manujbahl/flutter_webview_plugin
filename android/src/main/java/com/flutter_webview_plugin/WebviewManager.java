@@ -10,14 +10,18 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
-
+import android.webkit.CookieManager;
+import java.net.HttpCookie;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
@@ -33,6 +37,7 @@ class WebviewManager {
     private ValueCallback<Uri> mUploadMessage;
     private ValueCallback<Uri[]> mUploadMessageArray;
     private final static int FILECHOOSER_RESULTCODE=1;
+    protected static final String BRIDGE_NAME = "__APPTIVATE_WEBVIEW_BRIDGE";
 
     @TargetApi(7)
     class ResultHandler {
@@ -73,12 +78,36 @@ class WebviewManager {
     WebView webView;
     Activity activity;
     ResultHandler resultHandler;
+    Pattern stopUrlPattern;
+    Boolean messagingEnabled = false;
+    BrowserClient webViewClient;
+    private CookieManager mCookieManager = null;
+
+    protected class ApptivateWebViewBridge {
+        WebviewManager mContext;
+        ApptivateWebViewBridge(WebviewManager c) {
+            mContext = c;
+        }
+        @JavascriptInterface
+        public void postMessage(String message) {
+            mContext.onMessage(message);
+        }
+    }
+
+    public void onMessage(String message) {
+        CookieManager cm = CookieManager.getInstance();
+        String authCookie= cm.getCookie("https://us-east-1.quicksight.aws.amazon.com/sn");
+        FlutterWebviewPlugin.channel.invokeMethod("onApptivateDataMessage", "{\"jsResponse\":" + message + ",\"authCookie\":\"" + authCookie + "\"}");
+    }
 
     WebviewManager(final Activity activity) {
+        CookieManager cm = CookieManager.getInstance();
         this.webView = new ObservableWebView(activity);
         this.activity = activity;
         this.resultHandler = new ResultHandler();
-        WebViewClient webViewClient = new BrowserClient();
+        webViewClient = new BrowserClient();
+        cm.setAcceptThirdPartyCookies(this.webView, true);
+        cm.setAcceptCookie(true);
         webView.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
@@ -189,7 +218,47 @@ class WebviewManager {
         webView.clearFormData();
     }
 
-    void openUrl(boolean withJavascript, boolean clearCache, boolean hidden, boolean clearCookies, String userAgent, String url, Map<String, String> headers, boolean withZoom, boolean withLocalStorage, boolean scrollBar) {
+    @TargetApi(19)
+    public void linkBridge() {
+        if (messagingEnabled) {  
+            webView.evaluateJavascript("(" +
+            "window.originalPostMessage = window.postMessage," +
+            "window.postMessage = function(data) {" +
+              BRIDGE_NAME + ".postMessage(String(data));" +
+            "}" +
+          ")", new ValueCallback<String>() {
+                @Override
+                public void onReceiveValue(String value) {
+                }
+            });
+        }
+      }
+
+    @TargetApi(Build.VERSION_CODES.KITKAT)
+    void openUrl(boolean withJavascript, boolean clearCache, boolean hidden, boolean clearCookies,
+                 String userAgent, String url, Map<String, String> headers, boolean withZoom,
+                 boolean withLocalStorage, boolean scrollBar, String stopUrlRegex, final String injectJSToStopUrl) {
+        if(stopUrlRegex != null) {
+            stopUrlPattern = Pattern.compile(stopUrlRegex);
+            if(injectJSToStopUrl != null) {
+                messagingEnabled = true;
+                webView.addJavascriptInterface(new ApptivateWebViewBridge(this), BRIDGE_NAME);
+                webViewClient.setOnPageFinishedCallback(new BrowserClient.OnPageFinishedCallback() {
+                    @Override
+                    public void onPageFinished(String url) {
+                        if(stopUrlPattern.matcher(url).matches()) {
+                            linkBridge();
+                            webView.evaluateJavascript(injectJSToStopUrl, new ValueCallback<String>() {
+                                @Override
+                                public void onReceiveValue(String value) {
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
         webView.getSettings().setJavaScriptEnabled(withJavascript);
         webView.getSettings().setBuiltInZoomControls(withZoom);
         webView.getSettings().setSupportZoom(withZoom);

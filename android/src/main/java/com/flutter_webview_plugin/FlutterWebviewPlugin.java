@@ -88,6 +88,8 @@ public class FlutterWebviewPlugin implements MethodCallHandler, PluginRegistry.A
         boolean withLocalStorage = call.argument("withLocalStorage");
         Map<String, String> headers = call.argument("headers");
         boolean scrollBar = call.argument("scrollBar");
+        String stopUrlRegex = call.argument("stopUrlRegex");
+        String injectJSToStopUrl = call.argument("injectJSToStopUrl");
 
         if (webViewManager == null || webViewManager.closed == true) {
             webViewManager = new WebviewManager(activity);
@@ -106,7 +108,9 @@ public class FlutterWebviewPlugin implements MethodCallHandler, PluginRegistry.A
                 headers,
                 withZoom,
                 withLocalStorage,
-                scrollBar
+                scrollBar,
+                stopUrlRegex,
+                injectJSToStopUrl
         );
         result.success(null);
     }
@@ -181,7 +185,9 @@ public class FlutterWebviewPlugin implements MethodCallHandler, PluginRegistry.A
                     null,
                     false,
                     false,
-                    false
+                    false,
+                    null,
+                    null
             );
         }
     }
