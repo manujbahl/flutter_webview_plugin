@@ -101,12 +101,7 @@ class _WebviewScaffoldState extends State<WebviewScaffold> {
 
     if ( (widget.stopUrlRegex != null) && (widget.webViewCallback != null) ) {
         webviewReference.onApptivateDataMessage.listen((messageData) {
-            webviewReference.getCookies().then<dynamic>((response)  {
-                                                int ijk = 0;
-                                                ijk++;
-                                                
-                                            }); 
-            widget.webViewCallback["callback"](json.decode(messageData));
+            widget.webViewCallback["callback"](messageData);
         });
     }
 
