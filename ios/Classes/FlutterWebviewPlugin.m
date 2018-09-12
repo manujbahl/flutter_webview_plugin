@@ -230,25 +230,19 @@ static NSString *const CHANNEL_NAME = @"flutter_webview_plugin";
         id data = @{@"url": navigationAction.request.URL.absoluteString};
         [channel invokeMethod:@"onUrlChanged" arguments:data];
         
-        if ( (_stopUrlRegex != nil) && (_injectJSToStopUrl != nil) ) {
+        if ( (_stopUrlRegex != (NSString *)[NSNull null]) && (_injectJSToStopUrl != (NSString *)[NSNull null]) ) {
             NSError* error;
             NSRegularExpression* regex = [NSRegularExpression regularExpressionWithPattern: _stopUrlRegex options:0 error:&error];
             NSRange   searchedRange = NSMakeRange(0, [navigationAction.request.URL.absoluteString length]);
-            NSString* u = navigationAction.request.URL.absoluteString;
             NSArray* matches = [regex matchesInString:navigationAction.request.URL.absoluteString options:0 range: searchedRange];
             
-            //if([matches count] > 0) {
-            if([u rangeOfString:@"us-east-1.quicksight.aws.amazon.com"].location != NSNotFound) {
+            if([matches count] > 0) {
                 // inject js
                 WKWebViewConfiguration* configuration = self.webview.configuration;
                 NSString* useJS = @"onload = function() {";
                 useJS = [useJS stringByAppendingString:_injectJSToStopUrl];
                 useJS = [useJS stringByAppendingString: @"}"];
-               /* _injectJSToStopUrl = @"onload = function() {window.webkit.messageHandlers.apptivateApp.postMessage('{\
-                    \"app\" : \"apptivate\",\
-                    \"messageType\": \"message\",\
-                    \"value\": \"prop\"\
-                }')}";*/
+               
                 WKUserScript *s = [[WKUserScript alloc] initWithSource:useJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES];
                 WKUserContentController *c = configuration.userContentController;
                 
