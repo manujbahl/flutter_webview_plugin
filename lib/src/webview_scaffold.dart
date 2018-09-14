@@ -23,10 +23,12 @@ class WebviewScaffold extends StatefulWidget {
   final bool scrollBar;
   final String stopUrlRegex;
   final dynamic webViewCallback;
+  final dynamic webViewOnCloseCallback;
+  final FlutterWebviewPlugin webviewReference;
 
   final Map<String, String> headers;
 
-  const WebviewScaffold(
+    WebviewScaffold(
       {Key key,
       this.appBar,
       @required this.url,
@@ -43,37 +45,42 @@ class WebviewScaffold extends StatefulWidget {
       this.withLocalStorage,
       this.withLocalUrl,
       this.scrollBar,
+      this.webviewReference,
       this.stopUrlRegex,
-      this.webViewCallback})
-      : super(key: key);
+      this.webViewCallback,
+      this.webViewOnCloseCallback})
+      : super(key: key) {
+          assert(webviewReference != null);
+      }
 
   @override
   _WebviewScaffoldState createState() => new _WebviewScaffoldState();
 }
 
 class _WebviewScaffoldState extends State<WebviewScaffold> {
-  final webviewReference = new FlutterWebviewPlugin();
   Rect _rect;
   Timer _resizeTimer;
 
   @override
   void initState() {
     super.initState();
-    webviewReference.close();
+    widget.webviewReference.close();
   }
 
   @override
   void dispose() {
     super.dispose();
-    webviewReference.close();
-    webviewReference.dispose();
+    widget.webviewReference.close();
+    if(widget.webViewOnCloseCallback != null) {
+        widget.webViewOnCloseCallback();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_rect == null) {
       _rect = _buildRect(context);
-      webviewReference.launch(widget.url,
+      widget.webviewReference.launch(widget.url,
           headers: widget.headers,
           withJavascript: widget.withJavascript,
           clearCache: widget.clearCache,
@@ -84,9 +91,7 @@ class _WebviewScaffoldState extends State<WebviewScaffold> {
           withZoom: widget.withZoom,
           withLocalStorage: widget.withLocalStorage,
           withLocalUrl: widget.withLocalUrl,
-          scrollBar: widget.scrollBar,
-          stopUrlRegex: widget.stopUrlRegex,
-          webViewCallback: widget.webViewCallback);
+          scrollBar: widget.scrollBar);
     } else {
       final rect = _buildRect(context);
       if (_rect != rect) {
@@ -94,13 +99,13 @@ class _WebviewScaffoldState extends State<WebviewScaffold> {
         _resizeTimer?.cancel();
         _resizeTimer = new Timer(new Duration(milliseconds: 300), () {
           // avoid resizing to fast when build is called multiple time
-          webviewReference.resize(_rect);
+          widget.webviewReference.resize(_rect);
         });
       }
     }
 
     if ( (widget.stopUrlRegex != null) && (widget.webViewCallback != null) ) {
-        webviewReference.onApptivateDataMessage.listen((messageData) {
+        widget.webviewReference.onApptivateDataMessage.listen((messageData) {
             widget.webViewCallback["callback"](messageData);
         });
     }
